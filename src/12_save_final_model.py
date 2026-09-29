@@ -1,0 +1,135 @@
+import os
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder
+
+from xgboost import XGBRegressor
+import joblib
+
+
+# =========================================================
+# 1. Load dataset
+# =========================================================
+
+df = pd.read_csv("data/train.csv")
+
+
+# =========================================================
+# 2. Separate features and target
+# =========================================================
+
+X = df.drop("SalePrice", axis=1)
+y = df["SalePrice"]
+
+
+# =========================================================
+# 3. Identify feature types
+# =========================================================
+
+numerical_features = X.select_dtypes(
+    include=["int64", "float64"]
+).columns.tolist()
+
+categorical_features = X.select_dtypes(
+    include=["object"]
+).columns.tolist()
+
+
+# =========================================================
+# 4. Train / Test Split
+# =========================================================
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+
+# =========================================================
+# 5. Numerical preprocessing
+# =========================================================
+
+numerical_pipeline = Pipeline([
+    ("imputer", SimpleImputer(strategy="median"))
+])
+
+
+# =========================================================
+# 6. Categorical preprocessing
+# =========================================================
+
+categorical_pipeline = Pipeline([
+    ("imputer", SimpleImputer(strategy="most_frequent")),
+    ("encoder", OneHotEncoder(handle_unknown="ignore"))
+])
+
+
+# =========================================================
+# 7. Preprocessor
+# =========================================================
+
+preprocessor = ColumnTransformer([
+    ("num", numerical_pipeline, numerical_features),
+    ("cat", categorical_pipeline, categorical_features)
+])
+
+
+# =========================================================
+# 8. Final XGBoost model
+# =========================================================
+
+xgb = XGBRegressor(
+    n_estimators=500,
+    learning_rate=0.05,
+    max_depth=6,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    objective="reg:squarederror",
+    random_state=42,
+    n_jobs=-1
+)
+
+
+# =========================================================
+# 9. Complete Pipeline
+# =========================================================
+
+model = Pipeline([
+    ("preprocessor", preprocessor),
+    ("regressor", xgb)
+])
+
+
+# =========================================================
+# 10. Train final model
+# =========================================================
+
+print("\nTraining final model...")
+
+model.fit(X_train, y_train)
+
+
+# =========================================================
+# 11. Create models directory
+# =========================================================
+
+os.makedirs("models", exist_ok=True)
+
+
+# =========================================================
+# 12. Save model
+# =========================================================
+
+model_path = "models/house_price_model.pkl"
+
+joblib.dump(model, model_path)
+
+
+print("\n===== Final Model Saved =====")
+print(f"Model saved to: {model_path}")
